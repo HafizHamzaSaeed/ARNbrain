@@ -17,9 +17,11 @@ python3 arn_pipeline.py                 # full channel run
 python3 arn_pipeline.py --limit 3       # test on the first 3 videos
 ```
 
-Audio files are saved to `data/audio/`, transcripts to `data/transcripts/`.
-Re-running the script skips videos that were already downloaded or transcribed,
-so an interrupted run can be safely resumed.
+Audio files are saved to `data/audio/`, transcripts to `data/transcripts/` named
+after each video's title (e.g. `My Lecture Title [abc123XYZ].txt`) — the video
+ID stays bracketed at the end so re-runs can still detect and skip videos that
+were already transcribed. Re-running the script skips videos that were already
+downloaded or transcribed, so an interrupted run can be safely resumed.
 
 Options:
 

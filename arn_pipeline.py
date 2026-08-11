@@ -13,6 +13,7 @@ Resumable: videos already downloaded/transcribed are skipped on re-run.
 import argparse
 import logging
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -39,6 +40,18 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger("arn_pipeline")
+
+INVALID_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|]')
+
+
+def sanitize_filename(title: str, max_length: int = 120) -> str:
+    cleaned = INVALID_FILENAME_CHARS.sub("", title).strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned[:max_length].rstrip()
+
+
+def transcript_filename(title: str, video_id: str) -> str:
+    return f"{sanitize_filename(title)} [{video_id}].txt"
 
 
 def list_channel_videos(channel_url: str, limit: int | None) -> list[dict]:
@@ -180,10 +193,11 @@ def main():
         title = video.get("title", video_id)
         log.info("[%d/%d] %s (%s)", i, len(videos), title, video_id)
 
-        transcript_path = transcript_dir / f"{video_id}.txt"
-        if transcript_path.exists():
+        existing_transcript = list(transcript_dir.glob(f"*[{video_id}].txt"))
+        if existing_transcript:
             log.info("  [skip transcribe] transcript already exists")
             continue
+        transcript_path = transcript_dir / transcript_filename(title, video_id)
 
         try:
             audio_path = download_audio(video_id, video_url, audio_dir)

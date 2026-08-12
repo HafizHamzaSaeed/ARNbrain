@@ -30,8 +30,12 @@ DEFAULT_MODEL = "gemini-3.5-flash"
 INLINE_SIZE_LIMIT_BYTES = 19 * 1024 * 1024
 CHUNK_SECONDS = 600
 TRANSCRIBE_PROMPT = (
-    "Transcribe this audio verbatim. Output only the transcript text, "
-    "with no extra commentary or timestamps."
+    "Transcribe this audio in Roman Urdu (Urdu written using the Latin/English "
+    "alphabet, not Urdu or Arabic script). Keep the wording and meaning as close "
+    "to the spoken audio as possible. If any portion is in Arabic (e.g. Quranic "
+    "recitation) or English, transcribe that portion in its original "
+    "script/language rather than transliterating it into Roman Urdu. Output "
+    "only the transcript text, with no extra commentary or timestamps."
 )
 
 logging.basicConfig(

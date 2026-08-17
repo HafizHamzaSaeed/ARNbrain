@@ -9,10 +9,10 @@ Usage:
 
 Resumable: videos already downloaded/transcribed are skipped on re-run.
 
-Each transcript is named "<publish-date> - <title> [<video_id>].txt" and
-carries a "[Published: <date>]" header, and every video's id/title/date is
-recorded in data/manifest.jsonl — so downstream use (RAG, fine-tuning, etc.)
-can tell *when* an opinion was expressed instead of just what was said.
+Both audio and transcript files are named "<publish-date> - <title>
+[<video_id>].<ext>" and every video's id/title/date is recorded in
+data/manifest.jsonl — so downstream use (RAG, fine-tuning, etc.) can tell
+*when* an opinion was expressed instead of just what was said.
 """
 
 import argparse
@@ -67,18 +67,32 @@ def format_date(upload_date: str | None) -> str:
     return f"{upload_date[:4]}-{upload_date[4:6]}-{upload_date[6:8]}"
 
 
+def dated_stem(date_str: str, title: str, video_id: str) -> str:
+    return f"{date_str} - {sanitize_filename(title)} [{video_id}]"
+
+
 def transcript_filename(date_str: str, title: str, video_id: str) -> str:
-    return f"{date_str} - {sanitize_filename(title)} [{video_id}].txt"
+    return f"{dated_stem(date_str, title, video_id)}.txt"
+
+
+def find_by_id_suffix(directory: Path, video_id: str, bare_names: set[str] | None = None) -> Path | None:
+    """Find a file for this video_id, whether it's in the old bare-ID format
+    (e.g. "abc123.mp3") or the new dated format (e.g. "... [abc123].mp3")."""
+    bracket_suffix = f"[{video_id}]"
+    for p in directory.iterdir():
+        if p.stem == video_id or p.stem.endswith(bracket_suffix):
+            return p
+    return None
 
 
 def find_existing_transcript(transcript_dir: Path, video_id: str) -> Path | None:
     # Plain suffix match, not glob — "[video_id]" contains "[" / "]", which
     # glob treats as a character class rather than literal brackets.
-    suffix = f"[{video_id}].txt"
-    for p in transcript_dir.iterdir():
-        if p.name.endswith(suffix):
-            return p
-    return None
+    return find_by_id_suffix(transcript_dir, video_id)
+
+
+def find_existing_audio(audio_dir: Path, video_id: str) -> Path | None:
+    return find_by_id_suffix(audio_dir, video_id)
 
 
 def load_known_metadata(manifest_path: Path) -> dict:
@@ -137,15 +151,29 @@ def list_channel_videos(channel_url: str, limit: int | None) -> list[dict]:
     return flat
 
 
-def download_audio(video_id: str, video_url: str, audio_dir: Path) -> tuple[Path | None, dict | None]:
-    existing = list(audio_dir.glob(f"{video_id}.*"))
-    if existing:
-        log.info("  [skip download] %s already downloaded", video_id)
-        return existing[0], None
+def rename_if_bare(path: Path, video_id: str, meta: dict) -> Path:
+    """If `path` is still in the old bare-ID format, rename it to the dated
+    format now that we know the video's title/date."""
+    if path.stem != video_id:
+        return path
+    new_path = path.with_name(f"{dated_stem(meta['date'], meta['title'], video_id)}{path.suffix}")
+    if new_path != path:
+        path.rename(new_path)
+        log.info("  [backfill] renamed -> %s", new_path.name)
+    return new_path
 
+
+def download_audio(video_id: str, video_url: str, audio_dir: Path, meta: dict) -> tuple[Path | None, dict | None]:
+    existing = find_existing_audio(audio_dir, video_id)
+    if existing:
+        existing = rename_if_bare(existing, video_id, meta)
+        log.info("  [skip download] %s already downloaded", video_id)
+        return existing, None
+
+    outtmpl = str(audio_dir / f"{dated_stem(meta['date'], meta['title'], video_id)}.%(ext)s")
     ydl_opts = {
         "format": "bestaudio/best",
-        "outtmpl": str(audio_dir / f"{video_id}.%(ext)s"),
+        "outtmpl": outtmpl,
         "postprocessors": [
             {
                 "key": "FFmpegExtractAudio",
@@ -159,9 +187,9 @@ def download_audio(video_id: str, video_url: str, audio_dir: Path) -> tuple[Path
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(video_url, download=True)
 
-    result = list(audio_dir.glob(f"{video_id}.*"))
-    meta = {"title": info.get("title") or "", "date": format_date(info.get("upload_date"))} if info else None
-    return (result[0] if result else None), meta
+    result = find_existing_audio(audio_dir, video_id)
+    dl_meta = {"title": info.get("title") or "", "date": format_date(info.get("upload_date"))} if info else None
+    return result, dl_meta
 
 
 AUDIO_MIME_TYPES = {".mp3": "audio/mp3", ".m4a": "audio/mp4", ".wav": "audio/wav", ".ogg": "audio/ogg"}
@@ -259,17 +287,19 @@ def main():
         meta = known.get(video_id)
 
         # Backfill path: transcript already exists (e.g. from before this
-        # feature existed) — rename it to include the date and record it in
-        # the manifest, without re-downloading or re-transcribing.
+        # feature existed) — rename transcript + audio to the dated format
+        # and record it in the manifest, without re-downloading/re-transcribing.
         existing_transcript = find_existing_transcript(transcript_dir, video_id)
         if existing_transcript:
             if meta is None:
                 meta = fetch_video_metadata(video_url) or {"title": fallback_title, "date": UNKNOWN_DATE}
             new_path = transcript_dir / transcript_filename(meta["date"], meta["title"] or fallback_title, video_id)
-            old_path = existing_transcript
-            if old_path != new_path:
-                old_path.rename(new_path)
+            if existing_transcript != new_path:
+                existing_transcript.rename(new_path)
                 log.info("  [backfill] renamed -> %s", new_path.name)
+            existing_audio = find_existing_audio(audio_dir, video_id)
+            if existing_audio:
+                rename_if_bare(existing_audio, video_id, meta)
             if video_id not in known:
                 record = {
                     "video_id": video_id,
@@ -283,8 +313,11 @@ def main():
             log.info("  [skip transcribe] transcript already exists")
             continue
 
+        if meta is None:
+            meta = fetch_video_metadata(video_url) or {"title": fallback_title, "date": UNKNOWN_DATE}
+
         try:
-            audio_path, dl_meta = download_audio(video_id, video_url, audio_dir)
+            audio_path, dl_meta = download_audio(video_id, video_url, audio_dir, meta)
             if audio_path is None:
                 raise RuntimeError("download produced no audio file")
         except Exception as exc:  # noqa: BLE001
@@ -292,8 +325,9 @@ def main():
             failures.append((video_id, "download", str(exc)))
             continue
 
-        if meta is None:
-            meta = dl_meta or fetch_video_metadata(video_url) or {"title": fallback_title, "date": UNKNOWN_DATE}
+        if dl_meta:
+            meta = dl_meta  # authoritative title/date from the actual download
+
         title = meta["title"] or fallback_title
         date_str = meta["date"]
         transcript_path = transcript_dir / transcript_filename(date_str, title, video_id)
@@ -312,6 +346,7 @@ def main():
             "title": title,
             "publish_date": date_str,
             "url": video_url,
+            "audio_file": audio_path.name,
             "transcript_file": transcript_path.name,
         }
         append_manifest(manifest_path, record)

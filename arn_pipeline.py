@@ -9,10 +9,15 @@ Usage:
 
 Resumable: videos already downloaded/transcribed are skipped on re-run.
 
-Both audio and transcript files are named "<publish-date> - <title>
-[<video_id>].<ext>" and every video's id/title/date is recorded in
-data/manifest.jsonl — so downstream use (RAG, fine-tuning, etc.) can tell
-*when* an opinion was expressed instead of just what was said.
+Pulls from the channel's Videos, Shorts, and Live/streams tabs (not just
+Videos) so nothing is silently missed. Both audio and transcript files are
+named "<publish-date> - <title> [<video_id>].<ext>", and every video's
+id/title/date/duration/description is recorded in data/manifest.jsonl —
+so downstream use (RAG, fine-tuning, etc.) can tell *when* an opinion was
+expressed instead of just what was said. Possible duplicate uploads (same
+normalized title) and low-confidence transcripts are flagged in the
+manifest for manual review rather than silently dropped or accepted.
+Failures are logged to data/failures.jsonl as they happen.
 """
 
 import argparse
@@ -31,10 +36,12 @@ import google.generativeai as genai
 
 DEFAULT_CHANNEL_URL = "https://www.youtube.com/@AbdulRehmanNajamOfficial/videos"
 DEFAULT_MODEL = "gemini-3.5-flash"
+CHANNEL_TABS = ("videos", "shorts", "streams")
 # Files above this are rejected by the inline-audio request path, so longer
 # audio is split into chunks of this length and transcribed piece by piece.
 INLINE_SIZE_LIMIT_BYTES = 19 * 1024 * 1024
 CHUNK_SECONDS = 600
+CHUNK_OVERLAP_SECONDS = 15
 TRANSCRIBE_PROMPT = (
     "Transcribe this audio in Roman Urdu (Urdu written using the Latin/English "
     "alphabet, not Urdu or Arabic script). Keep the wording and meaning as close "
@@ -44,6 +51,7 @@ TRANSCRIBE_PROMPT = (
     "only the transcript text, with no extra commentary or timestamps."
 )
 UNKNOWN_DATE = "unknown-date"
+ARABIC_SCRIPT_RE = re.compile(r"[؀-ۿݐ-ݿ]")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,6 +69,10 @@ def sanitize_filename(title: str, max_length: int = 120) -> str:
     return cleaned[:max_length].rstrip()
 
 
+def normalize_title(title: str) -> str:
+    return re.sub(r"\s+", " ", title.strip().lower())
+
+
 def format_date(upload_date: str | None) -> str:
     if not upload_date or len(upload_date) != 8:
         return UNKNOWN_DATE
@@ -75,7 +87,7 @@ def transcript_filename(date_str: str, title: str, video_id: str) -> str:
     return f"{dated_stem(date_str, title, video_id)}.txt"
 
 
-def find_by_id_suffix(directory: Path, video_id: str, bare_names: set[str] | None = None) -> Path | None:
+def find_by_id_suffix(directory: Path, video_id: str) -> Path | None:
     """Find a file for this video_id, whether it's in the old bare-ID format
     (e.g. "abc123.mp3") or the new dated format (e.g. "... [abc123].mp3")."""
     bracket_suffix = f"[{video_id}]"
@@ -109,8 +121,8 @@ def load_known_metadata(manifest_path: Path) -> dict:
     return known
 
 
-def append_manifest(manifest_path: Path, record: dict) -> None:
-    with manifest_path.open("a", encoding="utf-8") as f:
+def append_jsonl(path: Path, record: dict) -> None:
+    with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
@@ -124,20 +136,25 @@ def fetch_video_metadata(video_url: str) -> dict | None:
         return None
     if info is None:
         return None
-    return {"title": info.get("title") or "", "date": format_date(info.get("upload_date"))}
+    return {
+        "title": info.get("title") or "",
+        "date": format_date(info.get("upload_date")),
+        "description": info.get("description") or "",
+    }
 
 
-def list_channel_videos(channel_url: str, limit: int | None) -> list[dict]:
+def list_tab_videos(tab_url: str) -> list[dict]:
     ydl_opts = {"extract_flat": True, "quiet": True, "ignoreerrors": True}
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(channel_url, download=False)
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(tab_url, download=False)
+    except Exception as exc:  # noqa: BLE001 - a channel may not have this tab
+        log.warning("  could not list %s: %s", tab_url, exc)
+        return []
     if info is None:
-        raise RuntimeError(
-            f"Could not fetch channel page for {channel_url} "
-            "(network error or the channel/URL is unreachable)."
-        )
+        return []
     entries = info.get("entries") or []
-    # Channel "videos" tabs sometimes nest another level of entries.
+    # Channel tabs sometimes nest another level of entries.
     flat = []
     for e in entries:
         if e is None:
@@ -146,9 +163,30 @@ def list_channel_videos(channel_url: str, limit: int | None) -> list[dict]:
             flat.extend(x for x in e["entries"] if x)
         else:
             flat.append(e)
-    if limit:
-        flat = flat[:limit]
     return flat
+
+
+def channel_base_url(channel_url: str) -> str:
+    trimmed = channel_url.rstrip("/")
+    for suffix in ("/videos", "/shorts", "/streams", "/featured"):
+        if trimmed.endswith(suffix):
+            return trimmed[: -len(suffix)]
+    return trimmed
+
+
+def list_channel_videos(channel_url: str, limit: int | None) -> list[dict]:
+    base = channel_base_url(channel_url)
+    seen_ids = set()
+    combined = []
+    for tab in CHANNEL_TABS:
+        for entry in list_tab_videos(f"{base}/{tab}"):
+            vid = entry.get("id")
+            if vid and vid not in seen_ids:
+                seen_ids.add(vid)
+                combined.append(entry)
+    if limit:
+        combined = combined[:limit]
+    return combined
 
 
 def rename_if_bare(path: Path, video_id: str, meta: dict) -> Path:
@@ -188,25 +226,60 @@ def download_audio(video_id: str, video_url: str, audio_dir: Path, meta: dict) -
         info = ydl.extract_info(video_url, download=True)
 
     result = find_existing_audio(audio_dir, video_id)
-    dl_meta = {"title": info.get("title") or "", "date": format_date(info.get("upload_date"))} if info else None
+    dl_meta = None
+    if info:
+        dl_meta = {
+            "title": info.get("title") or "",
+            "date": format_date(info.get("upload_date")),
+            "description": info.get("description") or "",
+        }
     return result, dl_meta
 
 
 AUDIO_MIME_TYPES = {".mp3": "audio/mp3", ".m4a": "audio/mp4", ".wav": "audio/wav", ".ogg": "audio/ogg"}
 
 
-def split_audio(audio_path: Path, chunk_dir: Path, chunk_seconds: int) -> list[Path]:
-    pattern = str(chunk_dir / f"chunk_%04d{audio_path.suffix}")
-    subprocess.run(
+def probe_duration(audio_path: Path) -> float:
+    result = subprocess.run(
         [
-            "ffmpeg", "-y", "-i", str(audio_path),
-            "-f", "segment", "-segment_time", str(chunk_seconds),
-            "-c", "copy", pattern,
+            "ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+            "-of", "csv=p=0", str(audio_path),
         ],
-        check=True,
-        capture_output=True,
+        check=True, capture_output=True, text=True,
     )
-    return sorted(chunk_dir.glob(f"chunk_*{audio_path.suffix}"))
+    return float(result.stdout.strip())
+
+
+def split_audio(audio_path: Path, chunk_dir: Path, duration: float, chunk_seconds: int, overlap_seconds: int) -> list[Path]:
+    step = max(chunk_seconds - overlap_seconds, 1)
+    chunks = []
+    start = 0.0
+    idx = 0
+    while start < duration:
+        out_path = chunk_dir / f"chunk_{idx:04d}{audio_path.suffix}"
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", str(audio_path),
+                "-ss", str(start), "-t", str(chunk_seconds),
+                "-c", "copy", str(out_path),
+            ],
+            check=True, capture_output=True,
+        )
+        chunks.append(out_path)
+        start += step
+        idx += 1
+    return chunks
+
+
+def merge_overlapping_text(a: str, b: str, max_check_chars: int = 300) -> str:
+    """Chunks are extracted from overlapping audio, so consecutive transcripts
+    usually repeat a stretch of text at the seam. Trim it by finding the
+    longest suffix of `a` that also appears as a prefix of `b`."""
+    a_tail = a[-max_check_chars:]
+    for length in range(min(len(a_tail), len(b)), 10, -1):
+        if a_tail[-length:] == b[:length]:
+            return a + b[length:]
+    return a + b
 
 
 def transcribe_chunk(data: bytes, mime_type: str, model: "genai.GenerativeModel", max_retries: int) -> str:
@@ -224,7 +297,7 @@ def transcribe_chunk(data: bytes, mime_type: str, model: "genai.GenerativeModel"
     raise RuntimeError("unreachable")
 
 
-def transcribe_audio(audio_path: Path, model_name: str, request_delay: float, max_retries: int = 3) -> str:
+def transcribe_audio(audio_path: Path, model_name: str, request_delay: float, duration: float, max_retries: int = 3) -> str:
     mime_type = AUDIO_MIME_TYPES.get(audio_path.suffix.lower(), "audio/mp3")
     model = genai.GenerativeModel(model_name)
     size = audio_path.stat().st_size
@@ -232,16 +305,29 @@ def transcribe_audio(audio_path: Path, model_name: str, request_delay: float, ma
     if size <= INLINE_SIZE_LIMIT_BYTES:
         return transcribe_chunk(audio_path.read_bytes(), mime_type, model, max_retries)
 
-    log.info("  audio is %.1fMB, splitting into %ds chunks", size / 1024 / 1024, CHUNK_SECONDS)
+    log.info("  audio is %.1fMB / %.0fs, splitting into overlapping %ds chunks", size / 1024 / 1024, duration, CHUNK_SECONDS)
     with tempfile.TemporaryDirectory() as tmp:
-        chunks = split_audio(audio_path, Path(tmp), CHUNK_SECONDS)
-        parts = []
+        chunks = split_audio(audio_path, Path(tmp), duration, CHUNK_SECONDS, CHUNK_OVERLAP_SECONDS)
+        combined = None
         for i, chunk_path in enumerate(chunks, start=1):
             log.info("  transcribing chunk %d/%d", i, len(chunks))
-            parts.append(transcribe_chunk(chunk_path.read_bytes(), mime_type, model, max_retries))
+            part = transcribe_chunk(chunk_path.read_bytes(), mime_type, model, max_retries)
+            combined = part if combined is None else merge_overlapping_text(combined, part)
             if i < len(chunks):
                 time.sleep(request_delay)
-        return "\n\n".join(parts)
+        return combined or ""
+
+
+def flag_quality_issues(transcript: str, duration: float) -> list[str]:
+    issues = []
+    char_count = len(transcript.strip())
+    if duration > 30 and char_count < duration * 1.0:
+        issues.append("transcript unusually short for audio length")
+    if char_count > 0:
+        arabic_frac = len(ARABIC_SCRIPT_RE.findall(transcript)) / char_count
+        if arabic_frac > 0.4:
+            issues.append("mostly Arabic/Urdu script text (expected Roman Urdu)")
+    return issues
 
 
 def main():
@@ -268,16 +354,20 @@ def main():
     audio_dir = output_dir / "audio"
     transcript_dir = output_dir / "transcripts"
     manifest_path = output_dir / "manifest.jsonl"
+    failures_path = output_dir / "failures.jsonl"
     audio_dir.mkdir(parents=True, exist_ok=True)
     transcript_dir.mkdir(parents=True, exist_ok=True)
 
     known = load_known_metadata(manifest_path)
+    title_index: dict[str, list[str]] = {}
+    for vid, record in known.items():
+        title_index.setdefault(normalize_title(record.get("title", "")), []).append(vid)
 
-    log.info("Fetching video list from %s ...", args.channel)
+    log.info("Fetching video list from %s (videos + shorts + streams) ...", args.channel)
     videos = list_channel_videos(args.channel, args.limit)
     log.info("Found %d video(s) to process.", len(videos))
 
-    failures = []
+    failure_count = 0
     for i, video in enumerate(videos, start=1):
         video_id = video.get("id")
         video_url = video.get("url") or f"https://www.youtube.com/watch?v={video_id}"
@@ -292,7 +382,7 @@ def main():
         existing_transcript = find_existing_transcript(transcript_dir, video_id)
         if existing_transcript:
             if meta is None:
-                meta = fetch_video_metadata(video_url) or {"title": fallback_title, "date": UNKNOWN_DATE}
+                meta = fetch_video_metadata(video_url) or {"title": fallback_title, "date": UNKNOWN_DATE, "description": ""}
             new_path = transcript_dir / transcript_filename(meta["date"], meta["title"] or fallback_title, video_id)
             if existing_transcript != new_path:
                 existing_transcript.rename(new_path)
@@ -301,20 +391,26 @@ def main():
             if existing_audio:
                 rename_if_bare(existing_audio, video_id, meta)
             if video_id not in known:
+                title = meta["title"] or fallback_title
+                norm = normalize_title(title)
+                is_dup = bool(title_index.get(norm))
                 record = {
                     "video_id": video_id,
-                    "title": meta["title"] or fallback_title,
+                    "title": title,
                     "publish_date": meta["date"],
                     "url": video_url,
+                    "description": meta.get("description", ""),
                     "transcript_file": new_path.name,
+                    "possible_duplicate": is_dup,
                 }
-                append_manifest(manifest_path, record)
+                append_jsonl(manifest_path, record)
                 known[video_id] = record
+                title_index.setdefault(norm, []).append(video_id)
             log.info("  [skip transcribe] transcript already exists")
             continue
 
         if meta is None:
-            meta = fetch_video_metadata(video_url) or {"title": fallback_title, "date": UNKNOWN_DATE}
+            meta = fetch_video_metadata(video_url) or {"title": fallback_title, "date": UNKNOWN_DATE, "description": ""}
 
         try:
             audio_path, dl_meta = download_audio(video_id, video_url, audio_dir, meta)
@@ -322,43 +418,58 @@ def main():
                 raise RuntimeError("download produced no audio file")
         except Exception as exc:  # noqa: BLE001
             log.error("  download failed: %s", exc)
-            failures.append((video_id, "download", str(exc)))
+            append_jsonl(failures_path, {"video_id": video_id, "url": video_url, "stage": "download", "error": str(exc)})
+            failure_count += 1
             continue
 
         if dl_meta:
-            meta = dl_meta  # authoritative title/date from the actual download
+            meta = dl_meta  # authoritative title/date/description from the actual download
 
         title = meta["title"] or fallback_title
         date_str = meta["date"]
+        norm_title = normalize_title(title)
+        is_duplicate = bool(title_index.get(norm_title))
+        if is_duplicate:
+            log.warning("  possible duplicate of %s (same title)", title_index[norm_title][0])
         transcript_path = transcript_dir / transcript_filename(date_str, title, video_id)
 
         try:
-            transcript = transcribe_audio(audio_path, args.model, args.request_delay)
+            duration = probe_duration(audio_path)
+            transcript = transcribe_audio(audio_path, args.model, args.request_delay, duration)
             transcript_path.write_text(f"[Published: {date_str}]\n\n{transcript}", encoding="utf-8")
             log.info("  transcribed -> %s", transcript_path.name)
         except Exception as exc:  # noqa: BLE001
             log.error("  transcription failed: %s", exc)
-            failures.append((video_id, "transcribe", str(exc)))
+            append_jsonl(failures_path, {"video_id": video_id, "url": video_url, "stage": "transcribe", "error": str(exc)})
+            failure_count += 1
             continue
+
+        quality_flags = flag_quality_issues(transcript, duration)
+        if quality_flags:
+            log.warning("  quality flags: %s", ", ".join(quality_flags))
 
         record = {
             "video_id": video_id,
             "title": title,
             "publish_date": date_str,
             "url": video_url,
+            "description": meta.get("description", ""),
+            "duration_seconds": round(duration),
+            "model": args.model,
             "audio_file": audio_path.name,
             "transcript_file": transcript_path.name,
+            "possible_duplicate": is_duplicate,
+            "quality_flags": quality_flags,
         }
-        append_manifest(manifest_path, record)
+        append_jsonl(manifest_path, record)
         known[video_id] = record
+        title_index.setdefault(norm_title, []).append(video_id)
 
         time.sleep(args.request_delay)
 
-    log.info("Done. %d succeeded, %d failed.", len(videos) - len(failures), len(failures))
-    if failures:
-        log.warning("Failures:")
-        for video_id, stage, err in failures:
-            log.warning("  %s [%s]: %s", video_id, stage, err)
+    log.info("Done. %d succeeded, %d failed.", len(videos) - failure_count, failure_count)
+    if failure_count:
+        log.warning("See %s for details on failed videos.", failures_path)
 
 
 if __name__ == "__main__":

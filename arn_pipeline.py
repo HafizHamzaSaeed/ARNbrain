@@ -117,6 +117,11 @@ def load_known_metadata(manifest_path: Path) -> dict:
             if not line:
                 continue
             record = json.loads(line)
+            # The manifest stores the date as "publish_date", but every
+            # in-memory meta dict (from fetch_video_metadata / download_audio)
+            # uses "date" — alias it so a manifest-loaded record can be used
+            # as `meta` interchangeably with a freshly-fetched one.
+            record.setdefault("date", record.get("publish_date", UNKNOWN_DATE))
             known[record["video_id"]] = record
     return known
 

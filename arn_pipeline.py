@@ -4,10 +4,19 @@
 Usage:
     export GEMINI_API_KEY="your-key-here"
     python3 arn_pipeline.py
-    python3 arn_pipeline.py --limit 3          # test on a few videos first
-    python3 arn_pipeline.py --channel <url> --output-dir ./data
+    python3 arn_pipeline.py --limit 3                       # test on a few videos first
+    python3 arn_pipeline.py --channel <url1> <url2> ...      # scan multiple channels in one run
+    python3 arn_pipeline.py --output-dir ./data
+    python3 arn_pipeline.py --cleanup-excluded              # retroactively remove EXCLUDE_TITLE_PATTERNS matches
 
 Resumable: videos already downloaded/transcribed are skipped on re-run.
+Scans multiple channels by default (see DEFAULT_CHANNEL_URLS) — currently
+both of ARN's channels. Videos whose title matches EXCLUDE_TITLE_PATTERNS
+(default: anything with "shafy" in it, for the other uploader on the main
+channel) are skipped entirely — never downloaded or transcribed. Run with
+--cleanup-excluded once after adding/changing a pattern to retroactively
+move any already-processed matches out of data/ (into data/excluded/,
+nothing is deleted) and out of the manifest.
 
 Guest podcast appearances (ARN on other channels) aren't covered by the
 channel scan above. To include them, add their video URLs — one per line —
@@ -41,8 +50,16 @@ from pathlib import Path
 import yt_dlp
 import google.generativeai as genai
 
-DEFAULT_CHANNEL_URL = "https://www.youtube.com/@AbdulRehmanNajamOfficial/videos"
+DEFAULT_CHANNEL_URLS = [
+    "https://www.youtube.com/@AbdulRehmanNajamOfficial/videos",
+    "https://www.youtube.com/@AbdulRehmanNajam2/videos",
+]
 DEFAULT_MODEL = "gemini-3.5-flash"
+# Case-insensitive substring match against the video title. Anything matching
+# is skipped entirely (never downloaded or transcribed) — used to exclude
+# other uploaders' content from a shared channel. Confirm/adjust this list
+# for your channel; it's a heuristic, not a guarantee.
+EXCLUDE_TITLE_PATTERNS = ["shafy"]
 CHANNEL_TABS = ("videos", "shorts", "streams")
 # Files above this are rejected by the inline-audio request path, so longer
 # audio is split into chunks of this length and transcribed piece by piece.
@@ -191,19 +208,25 @@ def channel_base_url(channel_url: str) -> str:
     return trimmed
 
 
-def list_channel_videos(channel_url: str, limit: int | None) -> list[dict]:
-    base = channel_base_url(channel_url)
+def list_channel_videos(channel_urls: list[str], limit: int | None) -> list[dict]:
     seen_ids = set()
     combined = []
-    for tab in CHANNEL_TABS:
-        for entry in list_tab_videos(f"{base}/{tab}"):
-            vid = entry.get("id")
-            if vid and vid not in seen_ids:
-                seen_ids.add(vid)
-                combined.append(entry)
+    for channel_url in channel_urls:
+        base = channel_base_url(channel_url)
+        for tab in CHANNEL_TABS:
+            for entry in list_tab_videos(f"{base}/{tab}"):
+                vid = entry.get("id")
+                if vid and vid not in seen_ids:
+                    seen_ids.add(vid)
+                    combined.append(entry)
     if limit:
         combined = combined[:limit]
     return combined
+
+
+def is_excluded(title: str, patterns: list[str]) -> bool:
+    lowered = title.lower()
+    return any(p.lower() in lowered for p in patterns)
 
 
 def load_extra_urls(path: Path) -> list[str]:
@@ -366,9 +389,45 @@ def flag_quality_issues(transcript: str, duration: float) -> list[str]:
     return issues
 
 
+def run_cleanup(output_dir: Path, patterns: list[str]) -> None:
+    """Move already-processed videos matching EXCLUDE_TITLE_PATTERNS out of
+    the main audio/transcripts folders (into data/excluded/) and out of the
+    manifest, without deleting anything. Run once after adding/changing an
+    exclusion pattern to retroactively clean up videos processed before the
+    pattern existed."""
+    manifest_path = output_dir / "manifest.jsonl"
+    known = load_known_metadata(manifest_path)
+    excluded_dir = output_dir / "excluded"
+    (excluded_dir / "audio").mkdir(parents=True, exist_ok=True)
+    (excluded_dir / "transcripts").mkdir(parents=True, exist_ok=True)
+
+    kept, moved = [], 0
+    for video_id, record in known.items():
+        if not is_excluded(record.get("title", ""), patterns):
+            kept.append(record)
+            continue
+        moved += 1
+        log.info("  [excluded] %s (%s)", record.get("title"), video_id)
+        for field, subdir in (("audio_file", "audio"), ("transcript_file", "transcripts")):
+            fname = record.get(field)
+            if not fname:
+                continue
+            src = output_dir / subdir / fname
+            if src.exists():
+                src.rename(excluded_dir / subdir / fname)
+
+    manifest_path.write_text("", encoding="utf-8")
+    for record in kept:
+        record = dict(record)
+        record.pop("date", None)  # internal alias, not part of the on-disk schema
+        append_jsonl(manifest_path, record)
+
+    log.info("Cleanup done: moved %d excluded video(s) to %s, %d remain in the manifest.", moved, excluded_dir, len(kept))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--channel", default=DEFAULT_CHANNEL_URL, help="YouTube channel URL")
+    parser.add_argument("--channel", nargs="+", default=DEFAULT_CHANNEL_URLS, help="One or more YouTube channel URLs")
     parser.add_argument("--output-dir", default="data", help="Where audio/transcripts are stored")
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Gemini model name")
     parser.add_argument("--limit", type=int, default=None, help="Only process the first N videos")
@@ -378,7 +437,18 @@ def main():
         default=4.0,
         help="Seconds to sleep between Gemini requests (rate-limit safety)",
     )
+    parser.add_argument(
+        "--cleanup-excluded",
+        action="store_true",
+        help="Move already-processed videos matching EXCLUDE_TITLE_PATTERNS out of the "
+             "manifest/folders and exit, instead of running the pipeline.",
+    )
     args = parser.parse_args()
+
+    output_dir = Path(args.output_dir)
+    if args.cleanup_excluded:
+        run_cleanup(output_dir, EXCLUDE_TITLE_PATTERNS)
+        return
 
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -386,7 +456,6 @@ def main():
         sys.exit(1)
     genai.configure(api_key=api_key)
 
-    output_dir = Path(args.output_dir)
     audio_dir = output_dir / "audio"
     transcript_dir = output_dir / "transcripts"
     manifest_path = output_dir / "manifest.jsonl"
@@ -399,8 +468,18 @@ def main():
     for vid, record in known.items():
         title_index.setdefault(normalize_title(record.get("title", "")), []).append(vid)
 
-    log.info("Fetching video list from %s (videos + shorts + streams) ...", args.channel)
+    log.info("Fetching video list from %s (videos + shorts + streams) ...", ", ".join(args.channel))
     videos = list_channel_videos(args.channel, args.limit)
+
+    if EXCLUDE_TITLE_PATTERNS:
+        before = len(videos)
+        excluded = [v for v in videos if is_excluded(v.get("title", ""), EXCLUDE_TITLE_PATTERNS)]
+        videos = [v for v in videos if v not in excluded]
+        if excluded:
+            log.info(
+                "Excluded %d video(s) matching %s (e.g. %s)",
+                len(excluded), EXCLUDE_TITLE_PATTERNS, excluded[0].get("title"),
+            )
 
     extra_urls_path = Path(EXTRA_URLS_FILE)
     extra_urls = load_extra_urls(extra_urls_path)

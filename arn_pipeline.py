@@ -9,6 +9,13 @@ Usage:
 
 Resumable: videos already downloaded/transcribed are skipped on re-run.
 
+Guest podcast appearances (ARN on other channels) aren't covered by the
+channel scan above. To include them, add their video URLs — one per line —
+to extra_urls.txt next to this script; they're picked up automatically on
+the next run, merged in and de-duplicated the same as everything else. If
+that file is missing or empty, a reminder is logged each run so this isn't
+forgotten once the main channel backlog is done.
+
 Pulls from the channel's Videos, Shorts, and Live/streams tabs (not just
 Videos) so nothing is silently missed. Both audio and transcript files are
 named "<publish-date> - <title> [<video_id>].<ext>", and every video's
@@ -47,10 +54,15 @@ TRANSCRIBE_PROMPT = (
     "alphabet, not Urdu or Arabic script). Keep the wording and meaning as close "
     "to the spoken audio as possible. If any portion is in Arabic (e.g. Quranic "
     "recitation) or English, transcribe that portion in its original "
-    "script/language rather than transliterating it into Roman Urdu. Output "
-    "only the transcript text, with no extra commentary or timestamps."
+    "script/language rather than transliterating it into Roman Urdu. If more than "
+    "one person speaks (e.g. a guest, co-host, or interviewer), label each "
+    "speaker's lines clearly, marking Abdul Rehman Najam's (ARN's) own speech "
+    "distinctly from anyone else's; if only one person speaks, no labels are "
+    "needed. Output only the transcript text, with no extra commentary or "
+    "timestamps."
 )
 UNKNOWN_DATE = "unknown-date"
+EXTRA_URLS_FILE = "extra_urls.txt"
 ARABIC_SCRIPT_RE = re.compile(r"[؀-ۿݐ-ݿ]")
 
 logging.basicConfig(
@@ -192,6 +204,25 @@ def list_channel_videos(channel_url: str, limit: int | None) -> list[dict]:
     if limit:
         combined = combined[:limit]
     return combined
+
+
+def load_extra_urls(path: Path) -> list[str]:
+    if not path.exists():
+        return []
+    return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def resolve_extra_url(url: str) -> dict | None:
+    ydl_opts = {"quiet": True, "skip_download": True, "ignoreerrors": True}
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except Exception as exc:  # noqa: BLE001 - a bad/unreachable URL shouldn't stop the run
+        log.warning("  could not resolve extra URL %s: %s", url, exc)
+        return None
+    if info is None or not info.get("id"):
+        return None
+    return {"id": info["id"], "title": info.get("title") or "", "url": url}
 
 
 def rename_if_bare(path: Path, video_id: str, meta: dict) -> Path:
@@ -370,6 +401,24 @@ def main():
 
     log.info("Fetching video list from %s (videos + shorts + streams) ...", args.channel)
     videos = list_channel_videos(args.channel, args.limit)
+
+    extra_urls_path = Path(EXTRA_URLS_FILE)
+    extra_urls = load_extra_urls(extra_urls_path)
+    if extra_urls:
+        log.info("Resolving %d extra URL(s) from %s ...", len(extra_urls), extra_urls_path)
+        seen_ids = {v.get("id") for v in videos}
+        for url in extra_urls:
+            resolved = resolve_extra_url(url)
+            if resolved and resolved["id"] not in seen_ids:
+                videos.append(resolved)
+                seen_ids.add(resolved["id"])
+    else:
+        log.info(
+            "Reminder: guest podcast appearances aren't included in the channel scan. "
+            "Add their video URLs (one per line) to %s when you're ready to include them.",
+            extra_urls_path,
+        )
+
     log.info("Found %d video(s) to process.", len(videos))
 
     failure_count = 0

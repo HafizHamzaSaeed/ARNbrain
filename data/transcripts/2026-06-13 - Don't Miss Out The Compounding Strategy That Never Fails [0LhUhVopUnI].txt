@@ -1,0 +1,61 @@
+[Published: 2026-06-13]
+
+Shatranj yaani chess jis bande ne banayi thi us bande ne jab apne waqt ke baadshah ko ye game dikhayi to baadshah ko bohat pasand aayi. Baadshah ne kaha ke maango kya maangte ho. Jo tum maangoge tumhein diya jayega. Us bande ne baadshah se ek bohat simple si cheez maangi.
+
+Chess ke board par 64 squares hote hain. Us bande ne kaha ke "Baadshah salamat aap mujhe chawal ke daane de dein lekin wo dein is tarah ke is chess board par ek daane se shuru karein aur har square par wo daane double karte jayein. Yaani ek se do, do se chaar and so on."
+
+Baadshah us bande ki is baat par hansa aur apne wazeer ko kaha ke "Jao, is bande ki ye khwahish puri kar do." Kuch din baad wazeer baadshah ke paas aaya aur kaha ke "Baadshah salamat, us bande ne jo humse chawlon ki demand ki thi, wo hum puri kar hi nahi sakte kyunki hamari puri saltanat to kya, puri duniya mein itne chawal ke daane nahi." Compounding bhi kuch isi tarah kaam karti hai.
+
+Ab ye chess ki story to pata nahi sach hai ya nahi lekin compounding yaqeenan ek haqeeqat hai. Main hoon Shafi Bhatt aur aayein aaj dekhte hain ke compounding hoti kya hai, kaam kaise karti hai aur aakhir kyun ise duniya ka aathwan ajooba kaha gaya hai.
+
+To bhai aasan lafzon mein compounding us process ko kehte hain jismein jahan se bhi aapne start liya hota hai, us value pe jo bhi profit ya growth hoti hai, wo start wali value mein add hoti hai. Jis wajah se jo agla profit ya growth hoti hai, wo pehle se zyada hoti hai.
+
+Ab ye process shuru mein to bohat slow sa hota hai kyunki shuru mein hamare numbers chote hote hain. Ek se do, do se chaar, chaar se aath. Koi khaas farq nahi pada. Lekin jab aap isko time dete hain to ek exponential growth hoti hai aur end mein isko rokna taqreeban namumkin sa ho jata hai.
+
+Wo chess wali story jo humne dekhi thi, uske 64 squares par chawlon ke daanon ke numbers nikalne ki maine koshish ki. Shuru ek se kiya, phir do, chaar, aath, shuru mein to bohat slow process tha lekin abhi main aadhe chess board tak hi pahuncha tha ke wo numbers itne bade ho gaye ke meri bas ho gayi.
+
+32nd square par chawal ke daane double karte karte wo number do arab se bhi bada ho gaya. Is se aage mere se calculations ki nahi gayi. Lekin jab internet par wo final number check kiya to wo kuch aisa number bana jo mujhe padhne hi nahi aata.
+
+To is example se humein time ya turns ki importance ka pata chala ke jitni zyada dafa hamare numbers increase honge utni tezi se inka difference badhega.
+
+Chess wali example to khair kafi badi thi aur samajhne mein bhi shayad thodi mushkil thi, aayein hum ek bohat simple si example dekh lete hain.
+
+Let's say do dost hain, Waseem aur Akram. In dono ko hum 10 dafa paise deinge. Waseem ko pehli baari mein ek rupiya deinge lekin har baari mein double karte jayeinge aur Akram ko hum har dafa paanch rupiye deinge.
+
+Ab ek aam banda to shayad yahi sochega ke ye totally unfair hai aur Akram jise har baari mein paanch rupiye milenge, use in total zyada paise milenge. To aayein, check kar lete hain.
+
+Waseem ko mila ek rupiya, Akram ko mile paanch. Agli baari mein Waseem ke paise kiye double yaani use mile do rupiye, Akram ko mile mazeed paanch, total ho gaye das. Waseem ke paise kiye double, chaar, Akram ko diye paanch aur, 15. Waseem aath, Akram bees. Waseem 16, Akram 25. Waseem 32, Akram 30. Abhi sirf chhati baari aayi hai aur Waseem already aage nikal gaya hai. Aage dekhte hain. Waseem 64, Akram 35. Waseem 128, Akram 40. Waseem 256, Akram 45. Waseem 512, Akram 50. 10 times ka difference ban gaya Waseem aur Akram ki amount mein. Kyun? Kyunki Waseem ke paise har baari mein double ho rahe the aur humne ye kaam kafi dafa kiya.
+
+Lekin ye example sirf compounding ki power ko aasani se samajhne ke liye thi. Ab compounding jaisa ke humne pehle discuss kiya ke jo bhi aapka profit hota hai, wo pichli value mein add to ho raha hota hai lekin zaroori nahi ke har dafa double ho rahi ho value. To aayein isko ek real life investing example se samajhte hain.
+
+To let's say hum 1000 rupees ki investment karte hain sirf ek dafa, theek hai, aur ispe humein 10% ka profit milega. To humein pehli dafa 100 rupaye ka profit mila, 10% of 1000, yaani ke total value ho gayi hamari 1100. Phir agli dafa humne koi aur investment nahi ki, zero rupees, sirf wo pehle wale 1000 hi the. To agli dafa jo humein profit milega wo 1000 mein nahi balki jo humein already profit ho chuka hai 1100, uske upar milega.
+
+To 1100 ka 10% hua 110, to wo 1100 mein add hue 110, ban gaye 1210 rupees. Isi tarah agli dafa humein 1000 ya 1100 pe nahi, 1210 rupees pe profit hoga jo ke banta hai 121. Total value ho gayi 1331. Agli dafa is pe jo 10% profit hoga wo ban jayega 1464 aur isi tarah karte karte agar ye kaam 10 saal tak ho to end pe humein jo final value banegi, wo banegi 2593 yaani ke taqreeban 159% ka profit.
+
+Ab waise to agar har saal 10% ka profit ho raha hai aur ye kaam hum 10 saalon tak karte hain to 100% ka profit hona chahiye tha, right? But nahi, kyunki compounding ho rahi hai, pichle wale returns aglon mein add ho rahe hain to humein 60% ka taqreeban extra profit hua hai. Isi liye compounding ko profit on profit kehte hain. Har baari mein hone wala profit pichle profit mein add ho kar mazeed profit banata hai.
+
+Ab yahi 1000 ki jagah agar humne 1 lakh rupaye ki investment ki hoti to percentage mein to humein total return yahi milna tha lekin wo numbers bohat bade ho jaane the. Aayein, check karte hain.
+
+1 lakh ki investment ki, 10% ka profit hua us pe yaani ke 10,000 ka profit, total value ho gayi 1,10,000. Agle saal humein 1,10,000 pe 10% ka profit hoga jo ke hai taqreeban 11,000 rupaye aur wo ban jayega 1,21,000 rupaye. Agle saal 1,21,000 pe 10% ka profit, total value ho jayegi 1,33,100. Isi tarah agle saal is pe hoga aur karte karte jab hum ye kaam 10 saal tak karenge to total value ban chuki hogi 2,59,000 rupees yaani ke again percentage mein 159.3% ka profit. Ab again hona to ye 100% ka profit chahiye tha but extra profit ho raha hai humein compounding ki wajah se kyunki saare profits jo hain wo add ho rahe hain.
+
+Aur is example mein agar hum 20 saal ke returns dekh lein to wo bante hain taqreeban 6,73,000 rupees yaani ke taqreeban 573% ka profit. Ab agar har saal 10% ka profit ho raha hai to 20 saalon mein taqreeban 200% ya 240% ka profit hona chahiye tha lekin actual mein hua hai 573 yaani ke taqreeban 350 se 370% ka izafi profit. Ye hai compounding ka jadoo aur is mein saari game time ki hai.
+
+To ab jab humein compounding aur is mein time ki importance pata chal chuki hai, dekhte hain ke agar asal mein hum stock market mein investment karte hain to kitna faida ho sakta hai. Ab agar hum KSE-100 Index yaani ke Pakistan ki 100 badi listed companies ki average ko dekhein to us mein humein taqreeban 18% ka return mil jata hai har saal. Kisi saal zyada hota hai kisi saal kam hota hai lekin har saal taqreeban aapko 18% ka return mil jata hai. Aur is mein agar hum taxes aur jo broker ke commission wagera hote hain us ko nikal dein to hum apni is example ke liye 17% ka return laga lete hain, thoda conservative rehte hain.
+
+Ab let's say hum KSE-100 Index mein har mahine sirf 25,000 rupees invest karte hain aur har saal apni investment ko 10% se badhainge. Yaani pehle saal agar humne 25,000 har mahine to 3 lakh pure saal mein invest kiye, 10% badhane se agle saal hum 3,30,000 rupees invest karenge. Aur aisa kyun? Bhai har saal hamari income bhi kuch na kuch badh rahi hoti hai, ya to salary badhti hai ya job switch karne se ek dam badi jump lag jati hai income mein. To hum 10% ka increment karenge har saal apni investment mein. Ab ye kaam hum consistency ke sath 25 saal tak karenge to us ke results kya bante hain, aayein dekh lete hain.
+
+Har mahine hum 25,000 rupees ki investment karenge aur har saal hum apni investment ko 10% se badhainge. Ye kaam hum karenge 25 years tak aur expected return hum le rahe hain 17% to 25 saalon baad hamari jo total investment hogi wo banegi 2 crore 95 lakh rupees ki aur jo humein return mila kar total value banegi wo hogi 22 crore 44 lakh rupees ki yaani ke taqreeban 20 crore rupees se zyada ka profit. Itne bade profits bante hain is mein.
+
+Ab is mein to hum har saal apni investment 10% se badha rahe the, let's say koi nahi badhata, koi kehta hai bhai main 25,000 hi deta rahunga har mahine, to uske results bhi check kar lete hain. Monthly investment hum kar rahe hain 25,000 rupees ki aur jo hum pehle har saal 10% badha rahe the wo ab hum nahi badhainge. Yahi kaam 25 saal tak kiya 17% return ke sath to hamare bane taqreeban jo investment hogi wo 75 lakh rupees ki aur jo final value hamari banegi 25 saal baad wo hogi taqreeban 11 crore 99 lakh rupees ki yaani ke taqreeban 12 crore rupaya.
+
+Aur niche agar aap iska graph dekhein to ye aapko pata lag raha hai time ki value. Ye blue wali jo hai wo hamari investment hai, green wali uski market value ya aap keh lo uska profit jo ban raha hai wo hai. To aap shuru mein dekhein koi khaas farq nahi pad raha right yahan se, lekin wo baad mein jaate jaate kitni tezi se badh raha hai. Ye hoti hai power of compounding, ye bilkul jadoo ki tarah hai. Is liye to Einstein ne ise eighth wonder of the world kaha tha.
+
+By the way ye jo har mahine ya ek fixed regular interval ke sath aap investment karte hain, isko SIP ya Systematic Investment Plan kehte hain aur is ke zariye aap compounding ka bohat achay se faida utha sakte hain.
+
+To bhai ye saari examples aur compounding ko samajhne ka jo crux hai, iska khulasa, wo ye hai ke aapko ho sake to teen nahi to do kaam zaroori karne hain. Ek, aapne apni investment ko zyada se zyada time dena hai grow karne ke liye aur doosra ye ke aapne ye kaam bilkul consistency ke sath karna hai. Ye nahi ke kabhi investment ki kabhi nahi ki, kabhi paise dale kabhi nikal liye, ye kaam bilkul nahi karna.
+
+Jab market che saal tak ek hi range mein rehti hai to ache achon ki bas ho jati hai, lekin aapne us dauran bhi investment karte rehna hai. Aur teesra ye ke agar ho sake to waqt ke sath aapne apni investments ko zaroor badhana hai taqi aapko compounding ka zyada se zyada faida ho sake. Ek dafa ye compounding wala process start ho gaya to end mein ye paisa itni tezi se grow karna hai ke wo waqai unbelievable sa lagna hai.
+
+Aur ye jo saari examples humne dekhi abhi ye KSE-100 Index ke return ke mutabiq thi yaani ke ek average return. Aap investing seekh ke is se zyada returns bhi bana sakte hain. Aur please investment jab bhi karni hai, wo aapne seekh ke karni hai. Seekhna kahan se hai? Ye YouTube channel bhi hai, iske ilawa aur bohat se YouTube channels hain. Hamari investing master class bhi hai jis mein aapko proper lectures milte hain companies ke upar, different sectors ke upar. To wahan se aap proper seekh ke ye kaam shuru kar sakte hain. Aur hamare jo returns hain model portfolio ke, wo KSE-100 Index ko badi aasani se beat kar rahe hain. To ye aap check kar sakte hain, iska link aapko description mein mil jayega.
+
+To bhai yahan par hamari aaj ki video khatam hoti hai. Compounding yaani profit on profits, boring at first, but baad mein jadoo ki tarah exponential growth. Karne wale teen kaam: time dena hai, process ko mustaqil follow karna hai, aur ho sake to time ke sath apni investments ko badhate rehna hai. Umeed karta hoon video se kuch seekhne ko zaroor mila hoga, koi sawaal ho, koi suggestion ho to comments mein zaroor poochein, video share karein, aur kisi khaas topic par koi video dekhni ho to hukum karein. Milte hain agli video mein.

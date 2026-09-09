@@ -1,0 +1,5 @@
+[Published: 2026-03-03]
+
+Speaker 1: Abhi jo nayi security ki type aayi hai market mein, cash settled futures. To aap is ke upar bhi koi session rakhein ki is ko kis tarah hum hedge ke taur pe use kar sakte hain?
+
+ARN: Dekhte hain abhi kis tareeqe se ye implement hota hai. Uh agar equities pe hi hoga to phir uh aap us ko as a hedging tool use kar sakte hain, ki jaise ek company hai aap ne 100 rupe pe khareedi thi aur 400 pe chali gayi hai aur aap ko lag raha hai ki outlook itni acchi nahi hai. To agar aap us ko 400 pe bechein ge na, to aap ko 300 rupees pe tax dena hoga. 45 rupees ban jata hai taqreeban. Lekin agar aap usi ko agar hedge kar lein ge aur aap ne ek aisa product khareed liya ki agar us share ki price 400 se 300 pe aa jati hai to aap ko 100 rupe ka faida hoga. Yani ki aap ne kisi ko aaj bech diya 400 rupe pe aur kal ko agar wo 300 pe aaya to aap ne us se buy back kar liya. To is se aap apna tax jo hai na wo payment us ki thode time ke liye delay kar sakte hain. To ye ek tool hota hai, dekhte hain is ko kis tareeqe se uh implement karte hain aur agar is ki acchi utility hui future mein, uh to is ko inshallah use bhi karein ge.

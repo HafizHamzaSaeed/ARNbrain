@@ -29,8 +29,10 @@ python arn_pipeline.py
 
 # 2. Push new/updated text (transcripts + manifest + failures) to GitHub.
 #    Audio is intentionally excluded from git (.gitignore) — it goes to
-#    Drive instead in step 3.
-git add data/transcripts data/manifest.jsonl data/failures.jsonl
+#    Drive instead in step 3. data/excluded/transcripts is included too,
+#    so videos moved there by --cleanup-excluded stay backed up under
+#    their new location instead of just disappearing from the repo.
+git add data/transcripts data/excluded/transcripts data/manifest.jsonl data/failures.jsonl
 $staged = git diff --cached --name-only
 if ($staged) {
     git commit -m "Daily transcript update: $(Get-Date -Format 'yyyy-MM-dd')"
@@ -41,8 +43,13 @@ if ($staged) {
 }
 
 # 3. Mirror audio + transcripts to Google Drive (official account) via rclone.
-rclone sync data/audio   arndrive:ARNBrain/audio      --progress
-rclone sync data/transcripts arndrive:ARNBrain/transcripts --progress
+#    data/excluded/* is synced to its own Drive subfolder so excluded
+#    videos (e.g. Shafy Butt's) stay backed up, not deleted, when they
+#    disappear from data/audio and data/transcripts.
+rclone sync data/audio             arndrive:ARNBrain/audio             --progress
+rclone sync data/transcripts       arndrive:ARNBrain/transcripts       --progress
+rclone sync data/excluded/audio       arndrive:ARNBrain/excluded/audio       --progress
+rclone sync data/excluded/transcripts arndrive:ARNBrain/excluded/transcripts --progress
 Write-Host "Synced audio + transcripts to Drive."
 
 Write-Host "=== Done: $(Get-Date) ==="

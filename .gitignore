@@ -1,4 +1,4 @@
-data/
+data/audio/
 *.mp3
 *.log
 .env

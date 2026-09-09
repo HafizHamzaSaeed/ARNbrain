@@ -43,3 +43,50 @@ it is never written to disk or committed to this repo.
 - Audio longer than ~19MB (roughly >30-40 min at the extraction bitrate used
   here) is automatically split into 10-minute chunks and transcribed piece by
   piece, then stitched into one transcript file.
+
+## Backups
+
+Two backup destinations, covering different risk (and cost) profiles:
+
+- **GitHub** — transcripts, `manifest.jsonl`, `failures.jsonl` (text only,
+  small, full history). `data/audio/` is excluded from git via `.gitignore`
+  on purpose — audio is large and doesn't need version history, just a copy
+  somewhere safe.
+- **Google Drive** (a folder in your official-email account, shared with
+  your personal account through Drive's normal Share feature — no Claude
+  connection needed for this part) — both audio and a mirror of the
+  transcripts, synced with `rclone`.
+
+### One-time rclone setup
+
+1. Install rclone: https://rclone.org/downloads/ (just the Windows exe).
+2. `rclone config` → `n` (new remote) → name it `arndrive` → choose
+   `drive` (Google Drive) → follow the browser login prompt, signing in
+   with your **official** Google account → accept the defaults for the
+   rest (full access, not a shared drive, no advanced config).
+3. In that Drive account, create a folder (e.g. `ARNBrain`) and share it
+   with your personal email if you want to browse it from there too.
+4. Test it once by hand: `rclone lsd arndrive:` should list your Drive
+   folders.
+
+### Daily automation
+
+`daily_run.ps1` runs the pipeline, pushes new transcripts to GitHub, and
+syncs audio + transcripts to Drive, in that order — resumable and
+idempotent, so re-running it after a failure just picks up where it left
+off. Point Windows Task Scheduler at it once:
+
+```
+powershell -ExecutionPolicy Bypass -File daily_run.ps1
+```
+
+Requirements: `GEMINI_API_KEY` set as a persistent user environment
+variable (`setx`), and the one-time `rclone config` above already done.
+
+A note on scheduling elsewhere: GitHub Actions could in principle run
+this on a cron schedule without your laptop being on, since GitHub's
+runners have normal internet access — but YouTube tends to block/challenge
+requests from shared datacenter IP ranges (which Actions runners are) more
+aggressively than a home connection, so treat that as a fallback option
+rather than the primary path unless you're prepared to troubleshoot
+cookie-based workarounds.

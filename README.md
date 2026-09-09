@@ -25,13 +25,27 @@ downloaded or transcribed, so an interrupted run can be safely resumed.
 
 Options:
 
-- `--channel <url>` — override the default channel
+- `--channel <url>` — override the default channel(s)
 - `--output-dir <path>` — override the default `data/` output location
 - `--model <name>` — Gemini model used for transcription (default `gemini-3.5-flash`)
 - `--request-delay <seconds>` — delay between Gemini calls to avoid rate limits (default 4s)
+- `--cleanup-excluded` — retroactively move any already-downloaded video matching
+  `EXCLUDE_TITLE_PATTERNS` (e.g. another uploader's videos) out of `data/audio` and
+  `data/transcripts` into `data/excluded/`, and out of the manifest. Nothing is
+  deleted — just set aside. Run this once after adding a new exclusion pattern.
 
 The Gemini API key is read only from the `GEMINI_API_KEY` environment variable —
 it is never written to disk or committed to this repo.
+
+## Guest appearances on other channels
+
+ARN's own channel scan only covers his own uploads. To include appearances as a
+guest on other channels/podcasts, add video or **playlist** URLs (one per line,
+`#` for comments) to `extra_urls.txt` — a playlist URL is automatically expanded
+into every video it contains. To add a newly-found appearance later, just paste
+its link on its own line in that file (or hand the link to Claude to add it for
+you). Start with playlists ARN has already curated on his own channel before
+branching out to searching other channels for more appearances.
 
 ## Notes
 
@@ -72,7 +86,7 @@ Two backup destinations, covering different risk (and cost) profiles:
 ### Daily automation
 
 `daily_run.ps1` runs the pipeline, pushes new transcripts to GitHub, and
-syncs audio + transcripts to Drive, in that order — resumable and
+copies audio + transcripts to Drive, in that order — resumable and
 idempotent, so re-running it after a failure just picks up where it left
 off. Point Windows Task Scheduler at it once:
 
@@ -80,8 +94,21 @@ off. Point Windows Task Scheduler at it once:
 powershell -ExecutionPolicy Bypass -File daily_run.ps1
 ```
 
-Requirements: `GEMINI_API_KEY` set as a persistent user environment
-variable (`setx`), and the one-time `rclone config` above already done.
+Requirements:
+- `GEMINI_API_KEY_FREE` set as a persistent user environment variable (`setx`)
+  to a key from a Google Cloud project that has **never** been linked to
+  billing. Daily runs only pick up a handful of new videos, well within the
+  free tier, so there's no reason to spend the paid balance (kept in
+  `GEMINI_API_KEY`, untouched) on routine catch-up. If one day's new videos
+  exceed the free tier's daily cap, the rest fail into `failures.jsonl` and
+  retry automatically the next day once the quota resets.
+- The one-time `rclone config` above already done.
+
+For safety, the script refuses to touch GitHub or Drive at all if
+`data/audio` or `data/transcripts` looks unexpectedly empty (e.g. the local
+folder got deleted or moved) — and it uses `git add --ignore-removal` and
+`rclone copy` (not `sync`) throughout, so it can only ever add or update
+files in the backups, never delete them, even if local data disappears.
 
 A note on scheduling elsewhere: GitHub Actions could in principle run
 this on a cron schedule without your laptop being on, since GitHub's

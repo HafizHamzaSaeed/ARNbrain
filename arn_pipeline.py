@@ -232,20 +232,38 @@ def is_excluded(title: str, patterns: list[str]) -> bool:
 def load_extra_urls(path: Path) -> list[str]:
     if not path.exists():
         return []
-    return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = (line.strip() for line in path.read_text(encoding="utf-8").splitlines())
+    return [line for line in lines if line and not line.startswith("#")]
 
 
-def resolve_extra_url(url: str) -> dict | None:
-    ydl_opts = {"quiet": True, "skip_download": True, "ignoreerrors": True}
+def expand_extra_url(url: str) -> list[dict]:
+    """Resolve one line from extra_urls.txt. Handles both a single video URL
+    and a playlist URL (e.g. a guest-appearances playlist), expanding a
+    playlist into its individual videos."""
+    ydl_opts = {"extract_flat": True, "quiet": True, "ignoreerrors": True}
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
     except Exception as exc:  # noqa: BLE001 - a bad/unreachable URL shouldn't stop the run
         log.warning("  could not resolve extra URL %s: %s", url, exc)
-        return None
-    if info is None or not info.get("id"):
-        return None
-    return {"id": info["id"], "title": info.get("title") or "", "url": url}
+        return []
+    if info is None:
+        return []
+    if info.get("_type") == "playlist":
+        results = []
+        for entry in info.get("entries") or []:
+            if not entry or not entry.get("id"):
+                continue
+            results.append({
+                "id": entry["id"],
+                "title": entry.get("title") or "",
+                "url": f"https://www.youtube.com/watch?v={entry['id']}",
+            })
+        log.info("  playlist %s -> %d video(s)", url, len(results))
+        return results
+    if not info.get("id"):
+        return []
+    return [{"id": info["id"], "title": info.get("title") or "", "url": url}]
 
 
 def rename_if_bare(path: Path, video_id: str, meta: dict) -> Path:
@@ -484,13 +502,13 @@ def main():
     extra_urls_path = Path(EXTRA_URLS_FILE)
     extra_urls = load_extra_urls(extra_urls_path)
     if extra_urls:
-        log.info("Resolving %d extra URL(s) from %s ...", len(extra_urls), extra_urls_path)
+        log.info("Resolving %d extra URL/playlist entr(y/ies) from %s ...", len(extra_urls), extra_urls_path)
         seen_ids = {v.get("id") for v in videos}
         for url in extra_urls:
-            resolved = resolve_extra_url(url)
-            if resolved and resolved["id"] not in seen_ids:
-                videos.append(resolved)
-                seen_ids.add(resolved["id"])
+            for resolved in expand_extra_url(url):
+                if resolved["id"] not in seen_ids:
+                    videos.append(resolved)
+                    seen_ids.add(resolved["id"])
     else:
         log.info(
             "Reminder: guest podcast appearances aren't included in the channel scan. "

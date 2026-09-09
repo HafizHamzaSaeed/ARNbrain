@@ -1,0 +1,10 @@
+# ARN's guest appearances on other channels/podcasts — one video or
+# playlist URL per line. Lines starting with # are comments, ignored.
+#
+# A playlist URL is expanded into all the videos it contains automatically.
+# To add a new guest appearance later, just paste its link on its own line
+# below (or hand it to Claude to add here for you).
+
+# Guest-appearance playlist from ARN's own official channel — start here
+# before searching other channels/podcasts for more appearances.
+https://www.youtube.com/playlist?list=PLfaNXPBK6tbp2TxYV1mrdUj_WHjxZxY3I

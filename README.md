@@ -47,6 +47,29 @@ its link on its own line in that file (or hand the link to Claude to add it for
 you). Start with playlists ARN has already curated on his own channel before
 branching out to searching other channels for more appearances.
 
+## Asking questions (search / RAG)
+
+Once transcripts exist, build a searchable index and query it:
+
+```bash
+python3 build_index.py             # one-time (and after new transcripts appear)
+python3 ask.py "What has ARN said about investing in gold?"
+python3 ask.py                     # interactive mode
+```
+
+`build_index.py` splits each transcript into overlapping chunks and embeds
+them with Gemini (`models/text-embedding-004` — a separate, much higher
+free-tier limit than generation), storing them in a local Chroma vector
+database at `data/index/` (not backed up to GitHub/Drive — it's cheap to
+rebuild from the transcripts, which are). Resumable the same way as the
+main pipeline: already-indexed videos are tracked in
+`data/index/indexed_videos.jsonl` and skipped on re-run.
+
+`ask.py` embeds your question, retrieves the most relevant transcript
+chunks, and asks Gemini to answer using only those excerpts — citing the
+date and video for each claim, and explicitly flagging when ARN's stated
+view seems to have changed over time (weighting the more recent one).
+
 ## Notes
 
 - Audio is sent to Gemini inline in the request rather than via the Files API

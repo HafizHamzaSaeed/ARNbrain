@@ -72,10 +72,15 @@ python3 ask.py                     # interactive mode
 `build_index.py` splits each transcript into overlapping chunks and embeds
 them with Gemini (`models/text-embedding-004` — a separate, much higher
 free-tier limit than generation), storing them in a local Chroma vector
-database at `data/index/` (not backed up to GitHub/Drive — it's cheap to
-rebuild from the transcripts, which are). Resumable the same way as the
-main pipeline: already-indexed videos are tracked in
-`data/index/indexed_videos.jsonl` and skipped on re-run.
+database at `data/index/`. Resumable the same way as the main pipeline:
+already-indexed videos are tracked in `data/index/indexed_videos.jsonl`
+and skipped on re-run.
+
+`data/index/` is **not** backed up to GitHub — it's a binary database that
+doesn't diff well in git and would bloat the repo on every rebuild — but
+it *is* copied to Drive (`ARNBrain/index`) automatically at the end of
+every `build_index.py` run, so it isn't stuck only on this PC even though
+it's excluded from git. Pass `--skip-drive-backup` to skip that step.
 
 `ask.py` embeds your question, retrieves the most relevant transcript
 chunks, and asks Gemini to answer using only those excerpts — citing the

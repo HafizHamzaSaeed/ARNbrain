@@ -19,6 +19,8 @@ import argparse
 import json
 import logging
 import os
+import shutil
+import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +31,7 @@ import google.generativeai as genai
 EMBED_MODEL = "models/text-embedding-004"
 CHUNK_SIZE = 1200
 CHUNK_OVERLAP = 150
+RCLONE_REMOTE = "arndrive:ARNBrain/index"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -87,11 +90,26 @@ def embed(text: str, task_type: str) -> list[float]:
     return result["embedding"]
 
 
+def backup_index_to_drive(index_dir: Path) -> None:
+    """Copy the built index to Drive so it doesn't only exist on this PC —
+    it's regenerable from the (already backed-up) transcripts, but this
+    saves having to rebuild/re-embed everything if this machine is lost."""
+    if not shutil.which("rclone"):
+        log.warning("  rclone not found on PATH, skipping Drive backup of the index.")
+        return
+    try:
+        subprocess.run(["rclone", "copy", str(index_dir), RCLONE_REMOTE, "--progress"], check=True)
+        log.info("  index backed up to %s", RCLONE_REMOTE)
+    except subprocess.CalledProcessError as exc:
+        log.warning("  rclone backup of the index failed: %s", exc)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default="data", help="Where manifest/transcripts/index live")
     parser.add_argument("--limit", type=int, help="Only index the first N not-yet-indexed videos (for testing)")
     parser.add_argument("--request-delay", type=float, default=0.3, help="Delay between embedding calls (seconds)")
+    parser.add_argument("--skip-drive-backup", action="store_true", help="Don't copy the index to Drive after building it")
     args = parser.parse_args()
 
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -164,6 +182,9 @@ def main():
         indexed_count += 1
 
     log.info("Done. %d video(s) newly indexed this run.", indexed_count)
+
+    if indexed_count and not args.skip_drive_backup:
+        backup_index_to_drive(index_dir)
 
 
 if __name__ == "__main__":

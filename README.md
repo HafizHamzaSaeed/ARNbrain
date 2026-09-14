@@ -2,6 +2,11 @@
 
 Downloads every video from a YouTube channel and transcribes the audio with Gemini.
 
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for why the system is built this
+way, how to fully rebuild it on a new PC if this one is ever lost, and how
+to make common changes (new exclusions, new channels, prompt/model
+changes, etc.). This file covers day-to-day usage.
+
 ## Setup
 
 ```bash

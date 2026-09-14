@@ -47,6 +47,18 @@ its link on its own line in that file (or hand the link to Claude to add it for
 you). Start with playlists ARN has already curated on his own channel before
 branching out to searching other channels for more appearances.
 
+Official-channel scanning and guest-appearance processing run on **separate**
+free-tier API keys/quotas, so a big guest-appearance catch-up never competes
+with the daily official-channel job for the same day's cap:
+
+- `daily_run.ps1` (automated, official channels only) uses `GEMINI_API_KEY_FREE`
+  and passes `--skip-extra-urls`.
+- `guest_appearances_run.ps1` (run by hand whenever you add new guest links)
+  uses a separate `GEMINI_API_KEY_GUESTS` and passes `--extra-urls-only`.
+
+Both flags also work standalone on `arn_pipeline.py` directly if you want to
+run either half manually outside the wrapper scripts.
+
 ## Asking questions (search / RAG)
 
 Once transcripts exist, build a searchable index and query it:

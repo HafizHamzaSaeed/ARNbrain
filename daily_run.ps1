@@ -30,12 +30,15 @@ if ($audioCount -lt 10 -or $transcriptCount -lt 10) {
 # GEMINI_API_KEY stays untouched for manual/bulk runs in other windows.
 $env:GEMINI_API_KEY = $env:GEMINI_API_KEY_FREE
 
-# 1. Fetch + transcribe any new uploads (both channels, extra guest URLs).
+# 1. Fetch + transcribe any new uploads from the official channel(s) only.
+#    --skip-extra-urls: guest-podcast appearances are handled separately,
+#    manually, on their own API key/quota — see guest_appearances_run.ps1 —
+#    so they don't compete with this daily job for the same free-tier cap.
 #    Already-completed videos are skipped automatically via the manifest.
 #    If a day's new videos exceed the free tier's daily request cap, the
 #    remainder fail into failures.jsonl and retry automatically tomorrow
 #    once the quota resets — no data lost, just a delay.
-python arn_pipeline.py
+python arn_pipeline.py --skip-extra-urls
 
 # 2. Push new/updated text (transcripts + manifest + failures) to GitHub.
 #    Audio is intentionally excluded from git (.gitignore) — it goes to

@@ -66,20 +66,26 @@ run either half manually outside the wrapper scripts.
 
 ## Asking questions (search / RAG)
 
-Once transcripts exist, build a searchable index and query it:
+`build_index.py` runs automatically as part of `daily_run.ps1`, so newly
+transcribed videos get indexed on their own — no manual step needed for
+day-to-day use. To ask a question:
 
 ```bash
-python3 build_index.py             # one-time (and after new transcripts appear)
 python3 ask.py "What has ARN said about investing in gold?"
 python3 ask.py                     # interactive mode
 ```
+
+(To run indexing manually — e.g. right after setting this up for the
+first time, before waiting for the next scheduled run — `python3
+build_index.py` works standalone too.)
 
 `build_index.py` splits each transcript into overlapping chunks and embeds
 them with Gemini (`models/gemini-embedding-001` — a separate, much higher
 free-tier limit than generation), storing them in a local Chroma vector
 database at `data/index/`. Resumable the same way as the main pipeline:
 already-indexed videos are tracked in `data/index/indexed_videos.jsonl`
-and skipped on re-run.
+and skipped on re-run — including across the free tier's daily embedding
+cap, which a large initial backlog can take several days to fully clear.
 
 `data/index/` is **not** backed up to GitHub — it's a binary database that
 doesn't diff well in git and would bloat the repo on every rebuild — but

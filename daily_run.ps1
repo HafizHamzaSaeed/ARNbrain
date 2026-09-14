@@ -1,4 +1,4 @@
-# Daily ARN Brain automation: fetch new videos, transcribe, back up.
+# Daily ARN Brain automation: fetch new videos, transcribe, back up, index.
 #
 # Wire this into Windows Task Scheduler as the one job that runs every day.
 # It expects GEMINI_API_KEY_FREE to be set as a persistent user env var
@@ -67,5 +67,11 @@ rclone copy data/transcripts           arndrive:ARNBrain/transcripts           -
 rclone copy data/excluded/audio        arndrive:ARNBrain/excluded/audio        --progress
 rclone copy data/excluded/transcripts  arndrive:ARNBrain/excluded/transcripts  --progress
 Write-Host "Copied audio + transcripts to Drive (existing Drive files are never deleted by this script)."
+
+# 4. Index any newly-transcribed videos into the search database. Resumable
+#    and self-throttling: if the day's embedding quota runs out partway
+#    through, it logs what's left and simply continues tomorrow — no
+#    separate babysitting needed. Backs itself up to Drive when done.
+python build_index.py
 
 Write-Host "=== Done: $(Get-Date) ==="

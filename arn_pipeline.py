@@ -461,7 +461,23 @@ def main():
         help="Move already-processed videos matching EXCLUDE_TITLE_PATTERNS out of the "
              "manifest/folders and exit, instead of running the pipeline.",
     )
+    parser.add_argument(
+        "--skip-extra-urls",
+        action="store_true",
+        help="Only scan the official channel(s); don't touch extra_urls.txt "
+             "(guest appearances). Use this to run official-channel and guest-appearance "
+             "catch-up on separate API keys/quotas.",
+    )
+    parser.add_argument(
+        "--extra-urls-only",
+        action="store_true",
+        help="Only process extra_urls.txt (guest appearances); don't scan the official "
+             "channel(s). Use this to run official-channel and guest-appearance catch-up "
+             "on separate API keys/quotas.",
+    )
     args = parser.parse_args()
+    if args.skip_extra_urls and args.extra_urls_only:
+        raise SystemExit("--skip-extra-urls and --extra-urls-only can't be used together.")
 
     output_dir = Path(args.output_dir)
     if args.cleanup_excluded:
@@ -486,35 +502,37 @@ def main():
     for vid, record in known.items():
         title_index.setdefault(normalize_title(record.get("title", "")), []).append(vid)
 
-    log.info("Fetching video list from %s (videos + shorts + streams) ...", ", ".join(args.channel))
-    videos = list_channel_videos(args.channel, args.limit)
+    videos = []
+    if not args.extra_urls_only:
+        log.info("Fetching video list from %s (videos + shorts + streams) ...", ", ".join(args.channel))
+        videos = list_channel_videos(args.channel, args.limit)
 
-    if EXCLUDE_TITLE_PATTERNS:
-        before = len(videos)
-        excluded = [v for v in videos if is_excluded(v.get("title", ""), EXCLUDE_TITLE_PATTERNS)]
-        videos = [v for v in videos if v not in excluded]
-        if excluded:
+        if EXCLUDE_TITLE_PATTERNS:
+            excluded = [v for v in videos if is_excluded(v.get("title", ""), EXCLUDE_TITLE_PATTERNS)]
+            videos = [v for v in videos if v not in excluded]
+            if excluded:
+                log.info(
+                    "Excluded %d video(s) matching %s (e.g. %s)",
+                    len(excluded), EXCLUDE_TITLE_PATTERNS, excluded[0].get("title"),
+                )
+
+    if not args.skip_extra_urls:
+        extra_urls_path = Path(EXTRA_URLS_FILE)
+        extra_urls = load_extra_urls(extra_urls_path)
+        if extra_urls:
+            log.info("Resolving %d extra URL/playlist entr(y/ies) from %s ...", len(extra_urls), extra_urls_path)
+            seen_ids = {v.get("id") for v in videos}
+            for url in extra_urls:
+                for resolved in expand_extra_url(url):
+                    if resolved["id"] not in seen_ids:
+                        videos.append(resolved)
+                        seen_ids.add(resolved["id"])
+        else:
             log.info(
-                "Excluded %d video(s) matching %s (e.g. %s)",
-                len(excluded), EXCLUDE_TITLE_PATTERNS, excluded[0].get("title"),
+                "Reminder: guest podcast appearances aren't included in the channel scan. "
+                "Add their video URLs (one per line) to %s when you're ready to include them.",
+                extra_urls_path,
             )
-
-    extra_urls_path = Path(EXTRA_URLS_FILE)
-    extra_urls = load_extra_urls(extra_urls_path)
-    if extra_urls:
-        log.info("Resolving %d extra URL/playlist entr(y/ies) from %s ...", len(extra_urls), extra_urls_path)
-        seen_ids = {v.get("id") for v in videos}
-        for url in extra_urls:
-            for resolved in expand_extra_url(url):
-                if resolved["id"] not in seen_ids:
-                    videos.append(resolved)
-                    seen_ids.add(resolved["id"])
-    else:
-        log.info(
-            "Reminder: guest podcast appearances aren't included in the channel scan. "
-            "Add their video URLs (one per line) to %s when you're ready to include them.",
-            extra_urls_path,
-        )
 
     log.info("Found %d video(s) to process.", len(videos))
 

@@ -2,6 +2,11 @@
 
 Downloads every video from a YouTube channel and transcribes the audio with Gemini.
 
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for why the system is built this
+way, how to fully rebuild it on a new PC if this one is ever lost, and how
+to make common changes (new exclusions, new channels, prompt/model
+changes, etc.). This file covers day-to-day usage.
+
 ## Setup
 
 ```bash
@@ -46,6 +51,46 @@ into every video it contains. To add a newly-found appearance later, just paste
 its link on its own line in that file (or hand the link to Claude to add it for
 you). Start with playlists ARN has already curated on his own channel before
 branching out to searching other channels for more appearances.
+
+Official-channel scanning and guest-appearance processing run on **separate**
+free-tier API keys/quotas, so a big guest-appearance catch-up never competes
+with the daily official-channel job for the same day's cap:
+
+- `daily_run.ps1` (automated, official channels only) uses `GEMINI_API_KEY_FREE`
+  and passes `--skip-extra-urls`.
+- `guest_appearances_run.ps1` (run by hand whenever you add new guest links)
+  uses a separate `GEMINI_API_KEY_GUESTS` and passes `--extra-urls-only`.
+
+Both flags also work standalone on `arn_pipeline.py` directly if you want to
+run either half manually outside the wrapper scripts.
+
+## Asking questions (search / RAG)
+
+Once transcripts exist, build a searchable index and query it:
+
+```bash
+python3 build_index.py             # one-time (and after new transcripts appear)
+python3 ask.py "What has ARN said about investing in gold?"
+python3 ask.py                     # interactive mode
+```
+
+`build_index.py` splits each transcript into overlapping chunks and embeds
+them with Gemini (`models/text-embedding-004` — a separate, much higher
+free-tier limit than generation), storing them in a local Chroma vector
+database at `data/index/`. Resumable the same way as the main pipeline:
+already-indexed videos are tracked in `data/index/indexed_videos.jsonl`
+and skipped on re-run.
+
+`data/index/` is **not** backed up to GitHub — it's a binary database that
+doesn't diff well in git and would bloat the repo on every rebuild — but
+it *is* copied to Drive (`ARNBrain/index`) automatically at the end of
+every `build_index.py` run, so it isn't stuck only on this PC even though
+it's excluded from git. Pass `--skip-drive-backup` to skip that step.
+
+`ask.py` embeds your question, retrieves the most relevant transcript
+chunks, and asks Gemini to answer using only those excerpts — citing the
+date and video for each claim, and explicitly flagging when ARN's stated
+view seems to have changed over time (weighting the more recent one).
 
 ## Notes
 

@@ -28,7 +28,7 @@ from pathlib import Path
 import chromadb
 import google.generativeai as genai
 
-EMBED_MODEL = "models/text-embedding-004"
+EMBED_MODEL = "models/gemini-embedding-001"
 CHUNK_SIZE = 1200
 CHUNK_OVERLAP = 150
 RCLONE_REMOTE = "arndrive:ARNBrain/index"

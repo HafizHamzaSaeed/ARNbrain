@@ -20,7 +20,7 @@ from pathlib import Path
 import chromadb
 import google.generativeai as genai
 
-EMBED_MODEL = "models/text-embedding-004"
+EMBED_MODEL = "models/gemini-embedding-001"
 ANSWER_MODEL = "gemini-3.5-flash"
 
 ANSWER_PROMPT = """You are answering a question about what Abdul Rehman Najam (ARN) \

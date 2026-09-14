@@ -109,6 +109,25 @@ separate quota buckets even on the same key, so there's no real quota
 conflict to avoid here (unlike the official-channel vs. guest-appearance
 split above, which genuinely did need separate keys).
 
+**The public web app (`app.py`) exports a lightweight index instead of
+using Chroma or a hosted vector database.** A deployed web app has no
+access to this PC's local Chroma database, so it needs the index in some
+form it can actually reach. Three options were considered: (1) a hosted
+vector-database service — rejected, since the free tiers found were
+usage-based/credit-based rather than a guaranteed flat $0, which conflicts
+with the project's cost goals; (2) Claude's own "ask a question" Artifact
+capability — rejected because it requires each viewer to have their own
+claude.ai account and answers via Claude rather than Gemini, which isn't
+what was wanted here; (3) **exporting the embeddings + chunk text as a
+plain numpy array + JSONL file, committed to git, loaded into memory by a
+small Streamlit app** — this is what's implemented. At this corpus size
+(thousands, not millions, of chunks), brute-force cosine similarity in
+numpy is fast enough that no real vector database is needed at all.
+
+**The public app uses a fourth, separate free-tier key.** Same reasoning
+as the official-channel/guest-appearance split: a tool other people can
+trigger shouldn't be able to starve the pipeline's own daily quota.
+
 ## Disaster recovery — rebuilding on a brand new PC
 
 If this PC is ever lost, wiped, or replaced, here's the full recovery path.
@@ -190,4 +209,11 @@ transcripts/index entries aren't retroactively updated.
 **Change which Gemini model is used.** `DEFAULT_MODEL` in `arn_pipeline.py`
 (transcription), `ANSWER_MODEL` in `ask.py` (question-answering), or
 `EMBED_MODEL` in `build_index.py` (indexing) — or pass `--model <name>` for
-a one-off run of `arn_pipeline.py`.
+a one-off run of `arn_pipeline.py`. Update `app.py`'s `EMBED_MODEL`/
+`ANSWER_MODEL` to match if you change these, or the public app's answers
+will drift out of sync with `ask.py`'s.
+
+**Update the public web app with new videos.** Run `build_index.py` (if
+not already done), then `python3 export_index.py`, then commit and push
+`data/public_index/` — Streamlit Community Cloud redeploys automatically
+on every push to the branch it's watching.

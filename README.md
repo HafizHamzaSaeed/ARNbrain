@@ -75,7 +75,7 @@ python3 ask.py                     # interactive mode
 ```
 
 `build_index.py` splits each transcript into overlapping chunks and embeds
-them with Gemini (`models/text-embedding-004` — a separate, much higher
+them with Gemini (`models/gemini-embedding-001` — a separate, much higher
 free-tier limit than generation), storing them in a local Chroma vector
 database at `data/index/`. Resumable the same way as the main pipeline:
 already-indexed videos are tracked in `data/index/indexed_videos.jsonl`
@@ -91,6 +91,43 @@ it's excluded from git. Pass `--skip-drive-backup` to skip that step.
 chunks, and asks Gemini to answer using only those excerpts — citing the
 date and video for each claim, and explicitly flagging when ARN's stated
 view seems to have changed over time (weighting the more recent one).
+
+## Public web app (unlisted link)
+
+`app.py` is the same question-answering logic as `ask.py`, wrapped as a
+small [Streamlit](https://streamlit.io) web app you can deploy for free on
+Streamlit Community Cloud, giving you an unlisted link you can share
+without anyone needing a Claude or Google account of their own.
+
+It doesn't read the local Chroma database directly — the deployed app has
+no access to your PC. Instead, `export_index.py` exports the built index
+into a small, git-friendly format:
+
+```bash
+python3 export_index.py
+# writes data/public_index/embeddings.npy + data/public_index/chunks.jsonl
+git add data/public_index
+git commit -m "Update public index"
+git push
+```
+
+Run this after `build_index.py` picks up new videos, whenever you want
+the deployed app to catch up.
+
+**One-time deployment:**
+1. Create a **4th** Gemini free-tier key, in its own never-billed project
+   (same process as the other keys) — this one is just for the public
+   app, so it never competes with the pipeline's own quotas.
+2. Go to [share.streamlit.io](https://share.streamlit.io), sign in with
+   GitHub, and deploy this repo's `app.py` (branch:
+   `claude/arn-pipeline-setup-38o0lb`).
+3. In the app's **Settings → Secrets**, add:
+   ```
+   GEMINI_API_KEY = "your-new-key-here"
+   ```
+4. Streamlit gives you a URL — that's the unlisted link. Share it only
+   with people you want using it (see ARCHITECTURE.md for why a fully
+   public, ungated link risks exhausting the free-tier quota).
 
 ## Notes
 

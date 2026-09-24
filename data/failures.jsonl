@@ -110,3 +110,4 @@
 {"video_id": "hVRNzAGdWZk", "url": "https://www.youtube.com/shorts/hVRNzAGdWZk", "stage": "download", "error": "\u001b[0;31mERROR:\u001b[0m unable to download video data: HTTP Error 403: Forbidden"}
 {"video_id": "MSt0KusRmrQ", "url": "https://www.youtube.com/watch?v=MSt0KusRmrQ", "stage": "download", "error": "\u001b[0;31mERROR:\u001b[0m [youtube] MSt0KusRmrQ: Premieres in 23 hours"}
 {"video_id": "5zKgdgM44c0", "url": "https://www.youtube.com/shorts/5zKgdgM44c0", "stage": "transcribe", "error": "Invalid operation: The `response.text` quick accessor requires the response to contain a valid `Part`, but none were returned. The candidate's [finish_reason](https://ai.google.dev/api/generate-content#finishreason) is 1."}
+{"video_id": "2rOu0eWMNww", "url": "https://www.youtube.com/watch?v=2rOu0eWMNww", "stage": "transcribe", "error": "504 Stream removed (Deadline Exceeded)"}

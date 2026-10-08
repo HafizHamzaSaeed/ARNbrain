@@ -6,3 +6,4 @@ data/index/
 .env
 __pycache__/
 *.pyc
+podcast_oneoff/audio/

@@ -475,6 +475,13 @@ def main():
              "channel(s). Use this to run official-channel and guest-appearance catch-up "
              "on separate API keys/quotas.",
     )
+    parser.add_argument(
+        "--urls-file",
+        default=EXTRA_URLS_FILE,
+        help="File of video/playlist URLs to process alongside (or, with --extra-urls-only, "
+             "instead of) the channel scan. Defaults to extra_urls.txt (guest appearances). "
+             "Point this at a different file for a one-off job.",
+    )
     args = parser.parse_args()
     if args.skip_extra_urls and args.extra_urls_only:
         raise SystemExit("--skip-extra-urls and --extra-urls-only can't be used together.")
@@ -517,7 +524,7 @@ def main():
                 )
 
     if not args.skip_extra_urls:
-        extra_urls_path = Path(EXTRA_URLS_FILE)
+        extra_urls_path = Path(args.urls_file)
         extra_urls = load_extra_urls(extra_urls_path)
         if extra_urls:
             log.info("Resolving %d extra URL/playlist entr(y/ies) from %s ...", len(extra_urls), extra_urls_path)
